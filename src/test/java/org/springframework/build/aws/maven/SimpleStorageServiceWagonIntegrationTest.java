@@ -24,6 +24,7 @@ import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.WagonException;
 import org.apache.maven.wagon.authentication.AuthenticationInfo;
 import org.apache.maven.wagon.repository.Repository;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -40,6 +41,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.build.aws.maven.matchers.Matchers.eq;
 
+@Ignore
 public final class SimpleStorageServiceWagonIntegrationTest {
 
     private static final String FILE_NAME = "robots.txt";
