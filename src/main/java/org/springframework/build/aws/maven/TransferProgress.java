@@ -25,4 +25,9 @@ interface TransferProgress {
      * @param length The length of the bytes transferred
      */
     void notify(byte[] buffer, int length);
+
+  /**
+   * Start a new transfer attempt on this progress
+   */
+  void startTransferAttempt();
 }

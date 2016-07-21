@@ -16,12 +16,14 @@
 
 package org.springframework.build.aws.maven;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
+
+import java.io.ByteArrayOutputStream;
+
 import org.apache.maven.wagon.events.TransferEvent;
 import org.apache.maven.wagon.resource.Resource;
 import org.junit.Test;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public final class TransferProgressTest {
 
@@ -44,4 +46,35 @@ public final class TransferProgressTest {
         verify(this.transferListenerSupport).fireTransferProgress(this.resource, REQUEST_TYPE, buffer, length);
     }
 
+    @Test
+    public void retryableTransferProgress() {
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        TransferProgress retyableTransferProgess = new RetryableTransferProgress(
+            new TransferProgress() {
+                @Override
+                public void notify(byte[] buffer, int length) {
+                    output.write(buffer, 0, length);
+                }
+                @Override public void startTransferAttempt() {}
+        });
+
+        String inputString = "abcdefghijklmnopqrstuvwxyz";
+        byte[] firstThird = inputString.substring(0, 9).getBytes();
+        byte[] secondThird = inputString.substring(9, 18).getBytes();
+        byte[] firstHalf = inputString.substring(0, 13).getBytes();
+        byte[] secondHalf = inputString.substring(13).getBytes();
+
+        retyableTransferProgess.startTransferAttempt();
+        retyableTransferProgess.notify(firstThird, firstThird.length);
+
+        retyableTransferProgess.startTransferAttempt();
+        retyableTransferProgess.notify(firstThird, firstThird.length);
+        retyableTransferProgess.notify(secondThird, secondThird.length);
+
+        retyableTransferProgess.startTransferAttempt();
+        retyableTransferProgess.notify(firstHalf, firstHalf.length);
+        retyableTransferProgess.notify(secondHalf, secondHalf.length);
+
+        assertEquals(inputString, output.toString());
+    }
 }

@@ -16,12 +16,18 @@
 
 package org.springframework.build.aws.maven;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.internal.Mimetypes;
-import com.amazonaws.services.s3.model.*;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.authentication.AuthenticationException;
@@ -29,12 +35,18 @@ import org.apache.maven.wagon.authentication.AuthenticationInfo;
 import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
-import java.io.*;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.internal.Mimetypes;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 /**
  * An implementation of the Maven Wagon interface that allows you to access the Amazon S3 service. URLs that reference
@@ -45,7 +57,7 @@ import java.util.regex.Pattern;
  * This implementation uses the <code>username</code> and <code>passphrase</code> portions of the server authentication
  * metadata for credentials.
  */
-public final class SimpleStorageServiceWagon extends AbstractWagon {
+public class SimpleStorageServiceWagon extends AbstractWagon {
 
     private static final String KEY_FORMAT = "%s%s";
 
@@ -64,7 +76,7 @@ public final class SimpleStorageServiceWagon extends AbstractWagon {
         super(true);
     }
 
-    SimpleStorageServiceWagon(AmazonS3 amazonS3, String bucketName, String baseDirectory) {
+    protected SimpleStorageServiceWagon(AmazonS3 amazonS3, String bucketName, String baseDirectory) {
         super(true);
         this.amazonS3 = amazonS3;
         this.bucketName = bucketName;
@@ -155,6 +167,7 @@ public final class SimpleStorageServiceWagon extends AbstractWagon {
             in = s3Object.getObjectContent();
             out = new TransferProgressFileOutputStream(destination, transferProgress);
 
+            transferProgress.startTransferAttempt();
             IoUtils.copy(in, out);
         } catch (AmazonServiceException e) {
             throw new ResourceDoesNotExistException(String.format("'%s' does not exist", resourceName), e);
@@ -182,6 +195,7 @@ public final class SimpleStorageServiceWagon extends AbstractWagon {
 
             in = new TransferProgressFileInputStream(source, transferProgress);
 
+            transferProgress.startTransferAttempt();
             this.amazonS3.putObject(new PutObjectRequest(this.bucketName, key, in, objectMetadata));
         } catch (AmazonServiceException e) {
             throw new TransferFailedException(String.format("Cannot write file to '%s'", destination), e);
