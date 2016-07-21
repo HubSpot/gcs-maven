@@ -38,4 +38,6 @@ final class StubTransferProgress implements TransferProgress {
         return this.length;
     }
 
+    @Override
+    public void startTransferAttempt() {}
 }

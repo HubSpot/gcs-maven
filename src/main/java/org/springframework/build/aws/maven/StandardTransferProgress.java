@@ -37,4 +37,6 @@ final class StandardTransferProgress implements TransferProgress {
         this.transferListenerSupport.fireTransferProgress(this.resource, this.requestType, buffer, length);
     }
 
+    @Override
+    public void startTransferAttempt() {}
 }
