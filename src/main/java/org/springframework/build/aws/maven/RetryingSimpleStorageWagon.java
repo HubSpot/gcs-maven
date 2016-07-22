@@ -96,22 +96,25 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
     public <V> void onRetry(Attempt<V> attempt) {
       if (attempt.hasResult()) {
         return;
-      } else if (attempt.getAttemptNumber() == TRANSFER_ATTEMPTS) {
-        LOG.warn("Transfer attempt {}/{} failed.",
-                 attempt.getAttemptNumber(),
-                 TRANSFER_ATTEMPTS);
-      } else {
-        LOG.warn("Transfer attempt {}/{} failed. Trying again in {} seconds",
+      }
+
+      boolean willRetry = attempt.getAttemptNumber() < TRANSFER_ATTEMPTS
+          && attempt.getExceptionCause() instanceof TransferFailedException;
+      if (willRetry) {
+        LOG.warn("Transfer attempt {}/{} failed. Retrying in {} seconds",
                  attempt.getAttemptNumber(),
                  TRANSFER_ATTEMPTS,
                  TRANSFER_RETRY_WAIT_SECONDS);
+      } else {
+        LOG.warn("Transfer attempt {}/{} failed.",
+                 attempt.getAttemptNumber(),
+                 TRANSFER_ATTEMPTS);
       }
-      if (attempt.hasException()) {
-        LOG.debug("Transfer attempt {}/{} failed with exception:",
-                  attempt.getAttemptNumber(),
-                  TRANSFER_ATTEMPTS,
-                  attempt.getExceptionCause());
-      }
+
+      LOG.debug("Transfer attempt {}/{} failed with exception:",
+                attempt.getAttemptNumber(),
+                TRANSFER_ATTEMPTS,
+                attempt.getExceptionCause());
     }
   }
 }
