@@ -106,7 +106,7 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
                  TRANSFER_ATTEMPTS,
                  TRANSFER_RETRY_WAIT_SECONDS);
       } else {
-        LOG.warn("Transfer attempt {}/{} failed.",
+        LOG.warn("Transfer attempt {}/{} failed. Will not retry",
                  attempt.getAttemptNumber(),
                  TRANSFER_ATTEMPTS);
       }
