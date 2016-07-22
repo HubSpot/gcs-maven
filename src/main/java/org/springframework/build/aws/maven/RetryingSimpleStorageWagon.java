@@ -7,9 +7,13 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.github.rholder.retry.Attempt;
 import com.github.rholder.retry.RetryException;
+import com.github.rholder.retry.RetryListener;
 import com.github.rholder.retry.Retryer;
 import com.github.rholder.retry.RetryerBuilder;
 import com.github.rholder.retry.StopStrategies;
@@ -17,6 +21,9 @@ import com.github.rholder.retry.WaitStrategies;
 import com.google.common.base.Throwables;
 
 public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
+  private static final Logger LOG = LoggerFactory.getLogger(RetryingSimpleStorageWagon.class);
+  private static final int TRANSFER_ATTEMPTS = 3;
+  private static final int TRANSFER_RETRY_WAIT_SECONDS = 5;
 
   public RetryingSimpleStorageWagon() {
     super();
@@ -63,8 +70,9 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
   ) throws TransferFailedException, ResourceDoesNotExistException {
     Retryer<Void> retryer = RetryerBuilder.<Void>newBuilder()
         .retryIfExceptionOfType(TransferFailedException.class)
-        .withWaitStrategy(WaitStrategies.fixedWait(5, TimeUnit.SECONDS))
-        .withStopStrategy(StopStrategies.stopAfterAttempt(3))
+        .withWaitStrategy(WaitStrategies.fixedWait(TRANSFER_RETRY_WAIT_SECONDS, TimeUnit.SECONDS))
+        .withStopStrategy(StopStrategies.stopAfterAttempt(TRANSFER_ATTEMPTS))
+        .withRetryListener(new TransferFailureLogger())
         .build();
     try {
       retryer.call(callable);
@@ -83,4 +91,27 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
     }
   }
 
+  private static class TransferFailureLogger implements RetryListener {
+    @Override
+    public <V> void onRetry(Attempt<V> attempt) {
+      if (attempt.hasResult()) {
+        return;
+      } else if (attempt.getAttemptNumber() == TRANSFER_ATTEMPTS) {
+        LOG.warn("Transfer attempt {}/{} failed.",
+                 attempt.getAttemptNumber(),
+                 TRANSFER_ATTEMPTS);
+      } else {
+        LOG.warn("Transfer attempt {}/{} failed. Trying again in {} seconds",
+                 attempt.getAttemptNumber(),
+                 TRANSFER_ATTEMPTS,
+                 TRANSFER_RETRY_WAIT_SECONDS);
+      }
+      if (attempt.hasException()) {
+        LOG.debug("Transfer attempt {}/{} failed with exception:",
+                  attempt.getAttemptNumber(),
+                  TRANSFER_ATTEMPTS,
+                  attempt.getExceptionCause());
+      }
+    }
+  }
 }
