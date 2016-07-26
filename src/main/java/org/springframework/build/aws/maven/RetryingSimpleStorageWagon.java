@@ -73,6 +73,7 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
         .withWaitStrategy(WaitStrategies.fixedWait(TRANSFER_RETRY_WAIT_SECONDS, TimeUnit.SECONDS))
         .withStopStrategy(StopStrategies.stopAfterAttempt(TRANSFER_ATTEMPTS))
         .withRetryListener(new TransferFailureLogger())
+        .withRetryListener(new TransferExceptionLogger())
         .build();
     try {
       retryer.call(callable);
@@ -94,13 +95,11 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
   private static class TransferFailureLogger implements RetryListener {
     @Override
     public <V> void onRetry(Attempt<V> attempt) {
-      if (attempt.hasResult()) {
-        return;
-      }
-
-      boolean willRetry = attempt.getAttemptNumber() < TRANSFER_ATTEMPTS
+      boolean transferFailed = attempt.hasException()
           && attempt.getExceptionCause() instanceof TransferFailedException;
-      if (willRetry) {
+      if (!transferFailed) {
+        return;
+      } else if (attempt.getAttemptNumber() < TRANSFER_ATTEMPTS) {
         LOG.warn("Transfer attempt {}/{} failed. Retrying in {} seconds",
                  attempt.getAttemptNumber(),
                  TRANSFER_ATTEMPTS,
@@ -110,7 +109,15 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
                  attempt.getAttemptNumber(),
                  TRANSFER_ATTEMPTS);
       }
+    }
+  }
 
+  private static class TransferExceptionLogger implements RetryListener {
+    @Override
+    public <V> void onRetry(Attempt<V> attempt) {
+      if (!attempt.hasException()) {
+        return;
+      }
       LOG.debug("Transfer attempt {}/{} failed with exception:",
                 attempt.getAttemptNumber(),
                 TRANSFER_ATTEMPTS,
