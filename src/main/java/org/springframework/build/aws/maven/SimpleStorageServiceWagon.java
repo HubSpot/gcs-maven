@@ -35,6 +35,7 @@ import org.apache.maven.wagon.authentication.AuthenticationInfo;
 import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
@@ -197,7 +198,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
             transferProgress.startTransferAttempt();
             this.amazonS3.putObject(new PutObjectRequest(this.bucketName, key, in, objectMetadata));
-        } catch (AmazonServiceException e) {
+        } catch (AmazonClientException e) {
             throw new TransferFailedException(String.format("Cannot write file to '%s'", destination), e);
         } catch (FileNotFoundException e) {
             throw new ResourceDoesNotExistException(String.format("Cannot read file from '%s'", source), e);
@@ -245,7 +246,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
             try {
                 this.amazonS3.putObject(putObjectRequest);
-            } catch (AmazonServiceException e) {
+            } catch (AmazonClientException e) {
                 throw new TransferFailedException(String.format("Cannot write directory '%s'", directory), e);
             }
 
