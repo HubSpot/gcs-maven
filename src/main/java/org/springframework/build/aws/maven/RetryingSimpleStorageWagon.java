@@ -34,7 +34,7 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
     super(amazonS3, bucketName, baseDirectory);
   }
 
-    @Override
+  @Override
   protected void putResource(
       final File source,
       final String destination,
