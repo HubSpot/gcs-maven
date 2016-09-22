@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
+import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,11 +39,11 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
       final File source,
       final String destination,
       TransferProgress transferProgress
-  ) throws TransferFailedException, ResourceDoesNotExistException {
+  ) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
     final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
       transferWithRetryer(new Callable<Void>() {
       @Override
-      public Void call() throws TransferFailedException, ResourceDoesNotExistException {
+      public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         RetryingSimpleStorageWagon.super.putResource(source, destination, retryableTransferProgress);
         return null;
       }
@@ -54,11 +55,11 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
       final String resourceName,
       final File destination,
       TransferProgress transferProgress
-  ) throws TransferFailedException, ResourceDoesNotExistException {
+  ) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
     final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
     transferWithRetryer(new Callable<Void>() {
       @Override
-      public Void call() throws TransferFailedException, ResourceDoesNotExistException {
+      public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         RetryingSimpleStorageWagon.super.getResource(resourceName, destination, retryableTransferProgress);
         return null;
       }
@@ -67,7 +68,7 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
 
   private void transferWithRetryer(
       Callable<Void> callable
-  ) throws TransferFailedException, ResourceDoesNotExistException {
+  ) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
     Retryer<Void> retryer = RetryerBuilder.<Void>newBuilder()
         .retryIfExceptionOfType(TransferFailedException.class)
         .withWaitStrategy(WaitStrategies.fixedWait(TRANSFER_RETRY_WAIT_SECONDS, TimeUnit.SECONDS))
@@ -78,7 +79,7 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
     try {
       retryer.call(callable);
     } catch (ExecutionException e) {
-      // This should always be a ResourceDoesNotExistException or RuntimeException
+      // This should always be a ResourceDoesNotExistException, AuthorizationException, or RuntimeException
       Throwables.propagateIfPossible(e.getCause(),
                                      TransferFailedException.class,
                                      ResourceDoesNotExistException.class);

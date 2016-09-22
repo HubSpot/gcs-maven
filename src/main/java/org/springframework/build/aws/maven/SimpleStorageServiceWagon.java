@@ -32,11 +32,11 @@ import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.authentication.AuthenticationInfo;
+import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -109,27 +109,32 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     }
 
     @Override
-    protected boolean doesRemoteResourceExist(String resourceName) {
+    protected boolean doesRemoteResourceExist(String resourceName) throws AuthorizationException, TransferFailedException {
         try {
             getObjectMetadata(resourceName);
             return true;
-        } catch (AmazonServiceException e) {
-            return false;
+        } catch (AmazonClientException e) {
+            try {
+                throw AmazonClientExceptions.propagateForAccess(e, resourceName);
+            } catch (ResourceDoesNotExistException e1) {
+                // Exceptions as control flow are not great
+                return false;
+            }
         }
     }
 
     @Override
-    protected boolean isRemoteResourceNewer(String resourceName, long timestamp) throws ResourceDoesNotExistException {
+    protected boolean isRemoteResourceNewer(String resourceName, long timestamp) throws ResourceDoesNotExistException, TransferFailedException, AuthorizationException {
         try {
             Date lastModified = getObjectMetadata(resourceName).getLastModified();
             return lastModified == null || lastModified.getTime() > timestamp;
-        } catch (AmazonServiceException e) {
-            throw new ResourceDoesNotExistException(String.format("'%s' does not exist", resourceName), e);
+        } catch (AmazonClientException e) {
+            throw AmazonClientExceptions.propagateForAccess(e, resourceName);
         }
     }
 
     @Override
-    protected List<String> listDirectory(String directory) throws ResourceDoesNotExistException {
+    protected List<String> listDirectory(String directory) throws ResourceDoesNotExistException, TransferFailedException, AuthorizationException {
         List<String> directoryContents = new ArrayList<String>();
 
         try {
@@ -152,14 +157,14 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             }
 
             return directoryContents;
-        } catch (AmazonServiceException e) {
-            throw new ResourceDoesNotExistException(String.format("'%s' does not exist", directory), e);
+        } catch (AmazonClientException e) {
+            throw AmazonClientExceptions.propagateForAccess(e, directory);
         }
     }
 
     @Override
     protected void getResource(String resourceName, File destination, TransferProgress transferProgress)
-            throws TransferFailedException, ResourceDoesNotExistException {
+            throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         InputStream in = null;
         OutputStream out = null;
         try {
@@ -170,8 +175,8 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
             transferProgress.startTransferAttempt();
             IoUtils.copy(in, out);
-        } catch (AmazonServiceException e) {
-            throw new ResourceDoesNotExistException(String.format("'%s' does not exist", resourceName), e);
+        } catch (AmazonClientException e) {
+            throw AmazonClientExceptions.propagateForRead(e, resourceName);
         } catch (FileNotFoundException e) {
             throw new TransferFailedException(String.format("Cannot write file to '%s'", destination), e);
         } catch (IOException e) {
@@ -182,8 +187,8 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     }
 
     @Override
-    protected void putResource(File source, String destination, TransferProgress transferProgress) throws TransferFailedException,
-            ResourceDoesNotExistException {
+    protected void putResource(File source, String destination, TransferProgress transferProgress)
+            throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         String key = getKey(destination);
 
         mkdirs(key, 0);
@@ -199,7 +204,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             transferProgress.startTransferAttempt();
             this.amazonS3.putObject(new PutObjectRequest(this.bucketName, key, in, objectMetadata));
         } catch (AmazonClientException e) {
-            throw new TransferFailedException(String.format("Cannot write file to '%s'", destination), e);
+            throw AmazonClientExceptions.propagateForWrite(e, destination);
         } catch (FileNotFoundException e) {
             throw new ResourceDoesNotExistException(String.format("Cannot read file from '%s'", source), e);
         } finally {
@@ -237,7 +242,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         return key;
     }
 
-    private void mkdirs(String path, int index) throws TransferFailedException {
+    private void mkdirs(String path, int index) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         int directoryIndex = path.indexOf('/', index) + 1;
 
         if (directoryIndex != 0) {
@@ -247,7 +252,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             try {
                 this.amazonS3.putObject(putObjectRequest);
             } catch (AmazonClientException e) {
-                throw new TransferFailedException(String.format("Cannot write directory '%s'", directory), e);
+                throw AmazonClientExceptions.propagateForWrite(e, directory);
             }
 
             mkdirs(path, directoryIndex);
