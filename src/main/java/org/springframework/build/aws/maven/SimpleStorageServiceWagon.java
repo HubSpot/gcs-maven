@@ -16,7 +16,6 @@
 
 package org.springframework.build.aws.maven;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,7 +40,6 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.internal.Mimetypes;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -191,8 +189,6 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         String key = getKey(destination);
 
-        mkdirs(key, 0);
-
         InputStream in = null;
         try {
             ObjectMetadata objectMetadata = new ObjectMetadata();
@@ -240,32 +236,6 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             return matcher.group(1);
         }
         return key;
-    }
-
-    private void mkdirs(String path, int index) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-        int directoryIndex = path.indexOf('/', index) + 1;
-
-        if (directoryIndex != 0) {
-            String directory = path.substring(0, directoryIndex);
-            PutObjectRequest putObjectRequest = createDirectoryPutObjectRequest(directory);
-
-            try {
-                this.amazonS3.putObject(putObjectRequest);
-            } catch (AmazonClientException e) {
-                throw AmazonClientExceptions.propagateForWrite(e, directory);
-            }
-
-            mkdirs(path, directoryIndex);
-        }
-    }
-
-    private PutObjectRequest createDirectoryPutObjectRequest(String key) {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
-
-        ObjectMetadata objectMetadata = new ObjectMetadata();
-        objectMetadata.setContentLength(0);
-
-        return new PutObjectRequest(this.bucketName, key, inputStream, objectMetadata).withCannedAcl(CannedAccessControlList.PublicRead);
     }
 
 }
