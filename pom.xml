@@ -11,7 +11,7 @@
 	<description>Standard Maven wagon support for s3:// urls</description>
 
 	<properties>
-		<amazonaws.version>1.11.548</amazonaws.version>
+		<gcs.version>1.96.0</gcs.version>
 		<junit.version>4.11</junit.version>
 		<mockito.version>1.9.5</mockito.version>
 		<slf4j.version>1.7.6</slf4j.version>
@@ -21,17 +21,11 @@
 	</properties>
 
 	<dependencies>
-		<dependency>
-			<groupId>com.amazonaws</groupId>
-			<artifactId>aws-java-sdk-s3</artifactId>
-			<version>${amazonaws.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>commons-logging</groupId>
-					<artifactId>commons-logging</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
+    <dependency>
+      <groupId>com.google.cloud</groupId>
+      <artifactId>google-cloud-storage</artifactId>
+      <version>${gcs.version}</version>
+    </dependency>
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>

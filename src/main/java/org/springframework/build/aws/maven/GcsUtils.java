@@ -16,14 +16,17 @@
 
 package org.springframework.build.aws.maven;
 
-import com.amazonaws.ClientConfiguration;
+import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.proxy.ProxyInfo;
 import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
-final class S3Utils {
+import com.amazonaws.ClientConfiguration;
+import com.google.cloud.storage.Blob;
 
-    private S3Utils() {
+final class GcsUtils {
+
+    private GcsUtils() {
     }
 
     static String getBucketName(Repository repository) {
@@ -38,6 +41,12 @@ final class S3Utils {
         }
 
         return sb.toString();
+    }
+
+    static void ensureBlobExists(Blob blob, String key) throws ResourceDoesNotExistException {
+      if (blob == null) {
+        throw new ResourceDoesNotExistException("Could not find key: " + key);
+      }
     }
 
     static ClientConfiguration getClientConfiguration(ProxyInfoProvider proxyInfoProvider) {

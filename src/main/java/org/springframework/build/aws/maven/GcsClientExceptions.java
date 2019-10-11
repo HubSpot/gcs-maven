@@ -4,61 +4,55 @@ import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.authorization.AuthorizationException;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
+import com.google.cloud.storage.StorageException;
 
-public class AmazonClientExceptions {
+public class GcsClientExceptions {
 
-  private AmazonClientExceptions() {
+  private GcsClientExceptions() {
     throw new AssertionError();
   }
 
   public static RuntimeException propagateForRead(
-      AmazonClientException amazonClientException,
+      StorageException gcsException,
       String s3Key
   ) throws AuthorizationException, ResourceDoesNotExistException, TransferFailedException {
-    return propagate(amazonClientException, "Error reading '%s'", s3Key);
+    return propagate(gcsException, "Error reading '%s'", s3Key);
   }
 
   public static RuntimeException propagateForWrite(
-      AmazonClientException amazonClientException,
+      StorageException gcsException,
       String s3Key
   ) throws AuthorizationException, ResourceDoesNotExistException, TransferFailedException {
-    return propagate(amazonClientException, "Error writing '%s'", s3Key);
+    return propagate(gcsException, "Error writing '%s'", s3Key);
   }
 
   public static RuntimeException propagateForAccess(
-      AmazonClientException amazonClientException,
+      StorageException gcsException,
       String s3Key
   ) throws AuthorizationException, ResourceDoesNotExistException, TransferFailedException {
-    return propagate(amazonClientException, "Error accessing '%s'", s3Key);
+    return propagate(gcsException, "Error accessing '%s'", s3Key);
   }
 
   // Note: this is not 100% well-defined given the potential error codes:
   // http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList
   private static RuntimeException propagate(
-      AmazonClientException amazonClientException,
+      StorageException gcsException,
       String errorMessageTemplate,
       String s3Key
   ) throws AuthorizationException, ResourceDoesNotExistException, TransferFailedException {
-    if (!(amazonClientException instanceof AmazonServiceException)) {
-      throw new TransferFailedException(
-          String.format(errorMessageTemplate, s3Key),
-          amazonClientException);
-    }
-    switch(((AmazonServiceException)amazonClientException).getStatusCode()) {
+    switch(gcsException.getCode()) {
     case 403:
       throw new AuthorizationException(
           String.format(errorMessageTemplate, s3Key),
-          amazonClientException);
+          gcsException);
     case 404:
       throw new ResourceDoesNotExistException(
           String.format("'%s' does not exist", s3Key),
-          amazonClientException);
+          gcsException);
     default:
       throw new TransferFailedException(
           String.format(errorMessageTemplate, s3Key),
-          amazonClientException);
+          gcsException);
     }
   }
 }

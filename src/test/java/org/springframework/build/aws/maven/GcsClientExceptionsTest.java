@@ -8,11 +8,11 @@ import org.junit.Test;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 
-public class AmazonClientExceptionsTest {
+public class GcsClientExceptionsTest {
 
   @Test(expected = TransferFailedException.class)
   public void itThrowsATransferFailedExceptionOnANonServiceException() throws Exception {
-    AmazonClientExceptions.propagateForAccess(new AmazonClientException("Test message"), "some/key");
+    GcsClientExceptions.propagateForAccess(new AmazonClientException("Test message"), "some/key");
   }
 
   @Test(expected = AuthorizationException.class)
@@ -40,6 +40,6 @@ public class AmazonClientExceptionsTest {
     amazonServiceException.setStatusCode(statusCode);
     amazonServiceException.setErrorCode(errorCode);
 
-    AmazonClientExceptions.propagateForAccess(amazonServiceException, s3Key);
+    GcsClientExceptions.propagateForAccess(amazonServiceException, s3Key);
   }
 }

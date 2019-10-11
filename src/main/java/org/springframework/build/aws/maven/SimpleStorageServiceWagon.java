@@ -21,6 +21,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -37,7 +43,6 @@ import org.apache.maven.wagon.repository.Repository;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.internal.Mimetypes;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
@@ -46,6 +51,14 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.google.cloud.WriteChannel;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.Blob.BlobSourceOption;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobField;
+import com.google.cloud.storage.Storage.BlobGetOption;
+import com.google.cloud.storage.StorageException;
 
 /**
  * An implementation of the Maven Wagon interface that allows you to access the Amazon S3 service. URLs that reference
@@ -62,7 +75,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
     private static final String RESOURCE_FORMAT = "%s(.*)";
 
-    private volatile AmazonS3 amazonS3;
+    private volatile Storage storage;
 
     private volatile String bucketName;
 
@@ -75,9 +88,9 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         super(true);
     }
 
-    protected SimpleStorageServiceWagon(AmazonS3 amazonS3, String bucketName, String baseDirectory) {
+    protected SimpleStorageServiceWagon(Storage storage, String bucketName, String baseDirectory) {
         super(true);
-        this.amazonS3 = amazonS3;
+        this.storage = storage;
         this.bucketName = bucketName;
         this.baseDirectory = baseDirectory;
     }
@@ -85,23 +98,23 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     @Override
     protected void connectToRepository(Repository repository, AuthenticationInfo authenticationInfo,
                                        ProxyInfoProvider proxyInfoProvider) throws AuthenticationException {
-        if (this.amazonS3 == null) {
+        if (this.storage == null) {
             AuthenticationInfoAWSCredentialsProviderChain credentialsProvider =
                     new AuthenticationInfoAWSCredentialsProviderChain(authenticationInfo);
-            ClientConfiguration clientConfiguration = S3Utils.getClientConfiguration(proxyInfoProvider);
+            ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(proxyInfoProvider);
 
-            this.bucketName = S3Utils.getBucketName(repository);
-            this.baseDirectory = S3Utils.getBaseDirectory(repository);
+            this.bucketName = GcsUtils.getBucketName(repository);
+            this.baseDirectory = GcsUtils.getBaseDirectory(repository);
 
-            this.amazonS3 = new AmazonS3Client(credentialsProvider, clientConfiguration);
+            this.storage = new AmazonS3Client(credentialsProvider, clientConfiguration);
             Region region = Region.fromLocationConstraint(this.amazonS3.getBucketLocation(this.bucketName));
-            this.amazonS3.setEndpoint(region.getEndpoint());
+            this.storage.setEndpoint(region.getEndpoint());
         }
     }
 
     @Override
     protected void disconnectFromRepository() {
-        this.amazonS3 = null;
+        this.storage = null;
         this.bucketName = null;
         this.baseDirectory = null;
     }
@@ -109,25 +122,27 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     @Override
     protected boolean doesRemoteResourceExist(String resourceName) throws AuthorizationException, TransferFailedException {
         try {
-            getObjectMetadata(resourceName);
-            return true;
-        } catch (AmazonClientException e) {
-            try {
-                throw AmazonClientExceptions.propagateForAccess(e, resourceName);
-            } catch (ResourceDoesNotExistException e1) {
-                // Exceptions as control flow are not great
-                return false;
-            }
+          return getBlob(resourceName) != null;
+        } catch (StorageException e) {
+          try {
+            throw GcsClientExceptions.propagateForAccess(e, resourceName);
+          } catch (ResourceDoesNotExistException unexpected) {
+            // don't think this should happen
+            return false;
+          }
         }
     }
 
     @Override
     protected boolean isRemoteResourceNewer(String resourceName, long timestamp) throws ResourceDoesNotExistException, TransferFailedException, AuthorizationException {
         try {
-            Date lastModified = getObjectMetadata(resourceName).getLastModified();
-            return lastModified == null || lastModified.getTime() > timestamp;
-        } catch (AmazonClientException e) {
-            throw AmazonClientExceptions.propagateForAccess(e, resourceName);
+            Blob blob = getBlob(resourceName, BlobField.UPDATED);
+            GcsUtils.ensureBlobExists(blob, getKey(resourceName));
+
+            Long lastModified = blob.getUpdateTime();
+            return lastModified == null || lastModified > timestamp;
+        } catch (StorageException e) {
+            throw GcsClientExceptions.propagateForAccess(e, resourceName);
         }
     }
 
@@ -156,31 +171,25 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
             return directoryContents;
         } catch (AmazonClientException e) {
-            throw AmazonClientExceptions.propagateForAccess(e, directory);
+            throw GcsClientExceptions.propagateForAccess(e, directory);
         }
     }
 
     @Override
     protected void getResource(String resourceName, File destination, TransferProgress transferProgress)
             throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            S3Object s3Object = this.amazonS3.getObject(this.bucketName, getKey(resourceName));
-
-            in = s3Object.getObjectContent();
-            out = new TransferProgressFileOutputStream(destination, transferProgress);
+        try (OutputStream out = new TransferProgressFileOutputStream(destination, transferProgress)) {
+            Blob blob = getBlob(resourceName);
+            GcsUtils.ensureBlobExists(blob, getKey(resourceName));
 
             transferProgress.startTransferAttempt();
-            IoUtils.copy(in, out);
-        } catch (AmazonClientException e) {
-            throw AmazonClientExceptions.propagateForRead(e, resourceName);
+            blob.downloadTo(out);
+        } catch (StorageException e) {
+            throw GcsClientExceptions.propagateForRead(e, resourceName);
         } catch (FileNotFoundException e) {
             throw new TransferFailedException(String.format("Cannot write file to '%s'", destination), e);
         } catch (IOException e) {
             throw new TransferFailedException(String.format("Cannot read from '%s' and write to '%s'", resourceName, destination), e);
-        } finally {
-            IoUtils.closeQuietly(in, out);
         }
     }
 
@@ -189,27 +198,36 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
         String key = getKey(destination);
 
-        InputStream in = null;
-        try {
-            ObjectMetadata objectMetadata = new ObjectMetadata();
-            objectMetadata.setContentLength(source.length());
-            objectMetadata.setContentType(Mimetypes.getInstance().getMimetype(source));
+        final String contentType;
+        if (source.getName().endsWith(".xml")) {
+            contentType = "application/xml";
+        } else {
+            contentType = "application/octet-stream";
+        }
 
-            in = new TransferProgressFileInputStream(source, transferProgress);
+        BlobInfo blobInfo = BlobInfo.newBuilder(this.bucketName, key)
+            .setContentType(contentType)
+            .build();
 
-            transferProgress.startTransferAttempt();
-            this.amazonS3.putObject(new PutObjectRequest(this.bucketName, key, in, objectMetadata));
-        } catch (AmazonClientException e) {
-            throw AmazonClientExceptions.propagateForWrite(e, destination);
+        try (InputStream inputStream = new TransferProgressFileInputStream(source, transferProgress);
+             WriteChannel outputChannel = this.storage.writer(blobInfo);
+             OutputStream outputStream = Channels.newOutputStream(outputChannel)) {
+            IoUtils.copy(inputStream, outputStream);
+        } catch (StorageException e) {
+            throw GcsClientExceptions.propagateForWrite(e, key);
         } catch (FileNotFoundException e) {
-            throw new ResourceDoesNotExistException(String.format("Cannot read file from '%s'", source), e);
-        } finally {
-            IoUtils.closeQuietly(in);
+          throw new TransferFailedException("Cannot find file: " + source, e);
+        } catch (IOException e) {
+          throw new TransferFailedException(String.format("Cannot read from '%s' and write to '%s'", source, key), e);
         }
     }
 
-    private ObjectMetadata getObjectMetadata(String resourceName) {
-        return this.amazonS3.getObjectMetadata(this.bucketName, getKey(resourceName));
+    private Blob getBlob(String resourceName, BlobField... fields) {
+        return this.storage.get(
+            this.bucketName,
+            getKey(resourceName),
+            BlobGetOption.fields(fields)
+        );
     }
 
     private String getKey(String resourceName) {

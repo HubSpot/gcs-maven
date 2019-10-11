@@ -27,7 +27,7 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public final class S3UtilsTest {
+public final class GcsUtilsTest {
 
     private static final int PORT = 100;
 
@@ -37,17 +37,17 @@ public final class S3UtilsTest {
 
     @Test
     public void getBucketName() {
-        assertEquals("dist.springsource.com", S3Utils.getBucketName(createRepository("/")));
+        assertEquals("dist.springsource.com", GcsUtils.getBucketName(createRepository("/")));
     }
 
     @Test
     public void getBaseDirectory() {
-        assertEquals("", S3Utils.getBaseDirectory(createRepository("")));
-        assertEquals("", S3Utils.getBaseDirectory(createRepository("/")));
-        assertEquals("foo/", S3Utils.getBaseDirectory(createRepository("/foo")));
-        assertEquals("foo/", S3Utils.getBaseDirectory(createRepository("/foo/")));
-        assertEquals("foo/bar/", S3Utils.getBaseDirectory(createRepository("/foo/bar")));
-        assertEquals("foo/bar/", S3Utils.getBaseDirectory(createRepository("/foo/bar/")));
+        assertEquals("", GcsUtils.getBaseDirectory(createRepository("")));
+        assertEquals("", GcsUtils.getBaseDirectory(createRepository("/")));
+        assertEquals("foo/", GcsUtils.getBaseDirectory(createRepository("/foo")));
+        assertEquals("foo/", GcsUtils.getBaseDirectory(createRepository("/foo/")));
+        assertEquals("foo/bar/", GcsUtils.getBaseDirectory(createRepository("/foo/bar")));
+        assertEquals("foo/bar/", GcsUtils.getBaseDirectory(createRepository("/foo/bar/")));
     }
 
     @Test
@@ -56,21 +56,21 @@ public final class S3UtilsTest {
         when(this.proxyInfo.getHost()).thenReturn("foo");
         when(this.proxyInfo.getPort()).thenReturn(PORT);
 
-        ClientConfiguration clientConfiguration = S3Utils.getClientConfiguration(this.proxyInfoProvider);
+        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(this.proxyInfoProvider);
         assertEquals("foo", clientConfiguration.getProxyHost());
         assertEquals(100, clientConfiguration.getProxyPort());
     }
 
     @Test
     public void getClientConfigurationNoProxyInfoProvider() {
-        ClientConfiguration clientConfiguration = S3Utils.getClientConfiguration(null);
+        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(null);
         assertNull(clientConfiguration.getProxyHost());
         assertEquals(-1, clientConfiguration.getProxyPort());
     }
 
     @Test
     public void getClientConfigurationNoProxyInfo() {
-        ClientConfiguration clientConfiguration = S3Utils.getClientConfiguration(this.proxyInfoProvider);
+        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(this.proxyInfoProvider);
         assertNull(clientConfiguration.getProxyHost());
         assertEquals(-1, clientConfiguration.getProxyPort());
     }
