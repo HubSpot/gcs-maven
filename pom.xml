@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.springframework.build</groupId>
-	<artifactId>aws-maven</artifactId>
+	<artifactId>gcs-maven</artifactId>
 	<packaging>jar</packaging>
 	<version>5.1.0-hubspot-SNAPSHOT</version>
 	<name>Amazon Web Services S3 Maven Wagon Support</name>
