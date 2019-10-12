@@ -16,7 +16,6 @@
 
 package org.springframework.build.aws.maven;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,18 +38,6 @@ final class IoUtils {
             }
         } finally {
             out.flush();
-        }
-    }
-
-    static void closeQuietly(Closeable... closeables) {
-        for (Closeable closeable : closeables) {
-            if (closeable != null) {
-                try {
-                    closeable.close();
-                } catch (IOException e) {
-                    // swallow the exception
-                }
-            }
         }
     }
 

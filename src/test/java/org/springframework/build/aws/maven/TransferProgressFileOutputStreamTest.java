@@ -16,16 +16,16 @@
 
 package org.springframework.build.aws.maven;
 
-import org.junit.After;
-import org.junit.Test;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.After;
+import org.junit.Test;
 
 public final class TransferProgressFileOutputStreamTest {
 
@@ -46,8 +46,8 @@ public final class TransferProgressFileOutputStreamTest {
     }
 
     @After
-    public void closeStream() {
-        IoUtils.closeQuietly(this.outputStream);
+    public void closeStream() throws IOException {
+        this.outputStream.close();
     }
 
     @Test

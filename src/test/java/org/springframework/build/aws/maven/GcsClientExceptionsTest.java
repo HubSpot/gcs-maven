@@ -5,14 +5,13 @@ import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.junit.Test;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
+import com.google.cloud.storage.StorageException;
 
 public class GcsClientExceptionsTest {
 
   @Test(expected = TransferFailedException.class)
   public void itThrowsATransferFailedExceptionOnANonServiceException() throws Exception {
-    GcsClientExceptions.propagateForAccess(new AmazonClientException("Test message"), "some/key");
+    GcsClientExceptions.propagateForAccess(new StorageException(500, "Test message"), "some/key");
   }
 
   @Test(expected = AuthorizationException.class)
@@ -35,11 +34,8 @@ public class GcsClientExceptionsTest {
       String errorCode,
       String s3Key
   ) throws Exception {
-    AmazonServiceException amazonServiceException =
-        new AmazonServiceException(String.format("%d: %s", statusCode, errorCode));
-    amazonServiceException.setStatusCode(statusCode);
-    amazonServiceException.setErrorCode(errorCode);
+    StorageException gcsException = new StorageException(statusCode, errorCode);
 
-    GcsClientExceptions.propagateForAccess(amazonServiceException, s3Key);
+    GcsClientExceptions.propagateForAccess(gcsException, s3Key);
   }
 }

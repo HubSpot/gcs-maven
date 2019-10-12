@@ -21,17 +21,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.SeekableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.TransferFailedException;
@@ -41,24 +37,19 @@ import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.internal.Mimetypes;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.google.api.gax.paging.Page;
+import com.google.api.gax.retrying.RetrySettings;
+import com.google.api.services.storage.StorageScopes;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
-import com.google.cloud.storage.Blob.BlobSourceOption;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobField;
 import com.google.cloud.storage.Storage.BlobGetOption;
+import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.StorageOptions;
 
 /**
  * An implementation of the Maven Wagon interface that allows you to access the Amazon S3 service. URLs that reference
@@ -72,8 +63,6 @@ import com.google.cloud.storage.StorageException;
 public class SimpleStorageServiceWagon extends AbstractWagon {
 
     private static final String KEY_FORMAT = "%s%s";
-
-    private static final String RESOURCE_FORMAT = "%s(.*)";
 
     private volatile Storage storage;
 
@@ -99,16 +88,19 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     protected void connectToRepository(Repository repository, AuthenticationInfo authenticationInfo,
                                        ProxyInfoProvider proxyInfoProvider) throws AuthenticationException {
         if (this.storage == null) {
-            AuthenticationInfoAWSCredentialsProviderChain credentialsProvider =
-                    new AuthenticationInfoAWSCredentialsProviderChain(authenticationInfo);
-            ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(proxyInfoProvider);
+          // TODO respect ProxyInfoProvider?
+          this.storage = StorageOptions.newBuilder()
+              .setCredentials(buildCredentials(authenticationInfo))
+              .setRetrySettings(
+                  RetrySettings.newBuilder()
+                      .setMaxAttempts(3)
+                      .build()
+              )
+              .build()
+              .getService();
 
             this.bucketName = GcsUtils.getBucketName(repository);
             this.baseDirectory = GcsUtils.getBaseDirectory(repository);
-
-            this.storage = new AmazonS3Client(credentialsProvider, clientConfiguration);
-            Region region = Region.fromLocationConstraint(this.amazonS3.getBucketLocation(this.bucketName));
-            this.storage.setEndpoint(region.getEndpoint());
         }
     }
 
@@ -122,14 +114,14 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     @Override
     protected boolean doesRemoteResourceExist(String resourceName) throws AuthorizationException, TransferFailedException {
         try {
-          return getBlob(resourceName) != null;
+            return getBlob(resourceName) != null;
         } catch (StorageException e) {
-          try {
-            throw GcsClientExceptions.propagateForAccess(e, resourceName);
-          } catch (ResourceDoesNotExistException unexpected) {
-            // don't think this should happen
-            return false;
-          }
+            try {
+                throw GcsClientExceptions.propagateForAccess(e, resourceName);
+            } catch (ResourceDoesNotExistException unexpected) {
+                // don't think this should happen
+                return false;
+            }
         }
     }
 
@@ -148,29 +140,22 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
     @Override
     protected List<String> listDirectory(String directory) throws ResourceDoesNotExistException, TransferFailedException, AuthorizationException {
-        List<String> directoryContents = new ArrayList<String>();
-
         try {
-            String prefix = getKey(directory);
-            Pattern pattern = Pattern.compile(String.format(RESOURCE_FORMAT, prefix));
+            String prefix = ensureTrailingSlash(getKey(directory));
 
-            ListObjectsRequest listObjectsRequest = new ListObjectsRequest() //
-                    .withBucketName(this.bucketName) //
-                    .withPrefix(prefix) //
-                    .withDelimiter("/");
+            Page<Blob> blobs = this.storage.list(
+                this.bucketName,
+                BlobListOption.currentDirectory(),
+                BlobListOption.prefix(prefix)
+            );
 
-            ObjectListing objectListing;
-
-            objectListing = this.amazonS3.listObjects(listObjectsRequest);
-            directoryContents.addAll(getResourceNames(objectListing, pattern));
-
-            while (objectListing.isTruncated()) {
-                objectListing = this.amazonS3.listObjects(listObjectsRequest);
-                directoryContents.addAll(getResourceNames(objectListing, pattern));
+            List<String> directoryContents = new ArrayList<>();
+            for (Blob blob : blobs.iterateAll()) {
+                directoryContents.add(blob.getName());
             }
 
             return directoryContents;
-        } catch (AmazonClientException e) {
+        } catch (StorageException e) {
             throw GcsClientExceptions.propagateForAccess(e, directory);
         }
     }
@@ -234,26 +219,19 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         return String.format(KEY_FORMAT, this.baseDirectory, resourceName);
     }
 
-    private List<String> getResourceNames(ObjectListing objectListing, Pattern pattern) {
-        List<String> resourceNames = new ArrayList<String>();
-
-        for (String commonPrefix : objectListing.getCommonPrefixes()) {
-            resourceNames.add(getResourceName(commonPrefix, pattern));
-        }
-
-        for (S3ObjectSummary s3ObjectSummary : objectListing.getObjectSummaries()) {
-            resourceNames.add(getResourceName(s3ObjectSummary.getKey(), pattern));
-        }
-
-        return resourceNames;
+    private static String ensureTrailingSlash(String original) {
+        return original.endsWith("/") ? original : original + "/";
     }
 
-    private String getResourceName(String key, Pattern pattern) {
-        Matcher matcher = pattern.matcher(key);
-        if (matcher.find()) {
-            return matcher.group(1);
+    private static GoogleCredentials buildCredentials(AuthenticationInfo authenticationInfo) throws AuthenticationException {
+        Path path = Paths.get(authenticationInfo.getPassword());
+        try {
+          return GoogleCredentials
+              .fromStream(Files.newInputStream(path, StandardOpenOption.READ))
+              .createScoped(StorageScopes.CLOUD_PLATFORM);
+        } catch (IOException e) {
+          throw new AuthenticationException("Error loading GCS credentials", e);
         }
-        return key;
     }
 
 }

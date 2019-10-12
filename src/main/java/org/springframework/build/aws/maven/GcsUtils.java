@@ -17,11 +17,8 @@
 package org.springframework.build.aws.maven;
 
 import org.apache.maven.wagon.ResourceDoesNotExistException;
-import org.apache.maven.wagon.proxy.ProxyInfo;
-import org.apache.maven.wagon.proxy.ProxyInfoProvider;
 import org.apache.maven.wagon.repository.Repository;
 
-import com.amazonaws.ClientConfiguration;
 import com.google.cloud.storage.Blob;
 
 final class GcsUtils {
@@ -49,16 +46,4 @@ final class GcsUtils {
       }
     }
 
-    static ClientConfiguration getClientConfiguration(ProxyInfoProvider proxyInfoProvider) {
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
-
-        if (proxyInfoProvider != null) {
-            ProxyInfo proxyInfo = proxyInfoProvider.getProxyInfo("s3");
-            if (proxyInfo != null) {
-                clientConfiguration.withProxyHost(proxyInfo.getHost()).withProxyPort(proxyInfo.getPort());
-            }
-        }
-
-        return clientConfiguration;
-    }
 }

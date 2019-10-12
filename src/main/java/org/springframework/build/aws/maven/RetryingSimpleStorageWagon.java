@@ -11,7 +11,6 @@ import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.github.rholder.retry.Attempt;
 import com.github.rholder.retry.RetryException;
 import com.github.rholder.retry.RetryListener;
@@ -19,6 +18,7 @@ import com.github.rholder.retry.Retryer;
 import com.github.rholder.retry.RetryerBuilder;
 import com.github.rholder.retry.StopStrategies;
 import com.github.rholder.retry.WaitStrategies;
+import com.google.cloud.storage.Storage;
 import com.google.common.base.Throwables;
 
 public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
@@ -30,8 +30,8 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
     super();
   }
 
-  protected RetryingSimpleStorageWagon(AmazonS3 amazonS3, String bucketName, String baseDirectory) {
-    super(amazonS3, bucketName, baseDirectory);
+  protected RetryingSimpleStorageWagon(Storage storage, String bucketName, String baseDirectory) {
+    super(storage, bucketName, baseDirectory);
   }
 
   @Override
@@ -40,13 +40,14 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
       final String destination,
       TransferProgress transferProgress
   ) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-    final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
+      final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
       transferWithRetryer(new Callable<Void>() {
-      @Override
-      public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-        RetryingSimpleStorageWagon.super.putResource(source, destination, retryableTransferProgress);
-        return null;
-      }
+
+        @Override
+        public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
+            RetryingSimpleStorageWagon.super.putResource(source, destination, retryableTransferProgress);
+            return null;
+        }
     });
   }
 
@@ -56,14 +57,15 @@ public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
       final File destination,
       TransferProgress transferProgress
   ) throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-    final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
-    transferWithRetryer(new Callable<Void>() {
-      @Override
-      public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
-        RetryingSimpleStorageWagon.super.getResource(resourceName, destination, retryableTransferProgress);
-        return null;
-      }
-    });
+      final TransferProgress retryableTransferProgress = new RetryableTransferProgress(transferProgress);
+      transferWithRetryer(new Callable<Void>() {
+
+          @Override
+          public Void call() throws TransferFailedException, ResourceDoesNotExistException, AuthorizationException {
+              RetryingSimpleStorageWagon.super.getResource(resourceName, destination, retryableTransferProgress);
+              return null;
+          }
+      });
   }
 
   private void transferWithRetryer(

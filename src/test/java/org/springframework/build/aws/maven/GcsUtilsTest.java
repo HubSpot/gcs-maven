@@ -16,24 +16,12 @@
 
 package org.springframework.build.aws.maven;
 
-import com.amazonaws.ClientConfiguration;
-import org.apache.maven.wagon.proxy.ProxyInfo;
-import org.apache.maven.wagon.proxy.ProxyInfoProvider;
+import static org.junit.Assert.assertEquals;
+
 import org.apache.maven.wagon.repository.Repository;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 public final class GcsUtilsTest {
-
-    private static final int PORT = 100;
-
-    private final ProxyInfoProvider proxyInfoProvider = mock(ProxyInfoProvider.class);
-
-    private final ProxyInfo proxyInfo = mock(ProxyInfo.class);
 
     @Test
     public void getBucketName() {
@@ -50,32 +38,7 @@ public final class GcsUtilsTest {
         assertEquals("foo/bar/", GcsUtils.getBaseDirectory(createRepository("/foo/bar/")));
     }
 
-    @Test
-    public void getClientConfiguration() {
-        when(this.proxyInfoProvider.getProxyInfo("s3")).thenReturn(this.proxyInfo);
-        when(this.proxyInfo.getHost()).thenReturn("foo");
-        when(this.proxyInfo.getPort()).thenReturn(PORT);
-
-        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(this.proxyInfoProvider);
-        assertEquals("foo", clientConfiguration.getProxyHost());
-        assertEquals(100, clientConfiguration.getProxyPort());
-    }
-
-    @Test
-    public void getClientConfigurationNoProxyInfoProvider() {
-        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(null);
-        assertNull(clientConfiguration.getProxyHost());
-        assertEquals(-1, clientConfiguration.getProxyPort());
-    }
-
-    @Test
-    public void getClientConfigurationNoProxyInfo() {
-        ClientConfiguration clientConfiguration = GcsUtils.getClientConfiguration(this.proxyInfoProvider);
-        assertNull(clientConfiguration.getProxyHost());
-        assertEquals(-1, clientConfiguration.getProxyPort());
-    }
-
     private Repository createRepository(String path) {
-        return new Repository("foo", String.format("s3://dist.springsource.com%s", path));
+        return new Repository("foo", String.format("gcs://dist.springsource.com%s", path));
     }
 }
