@@ -16,17 +16,12 @@
 
 package org.springframework.build.aws.maven.matchers;
 
-import com.amazonaws.services.s3.model.ListObjectsRequest;
 import org.apache.maven.wagon.events.SessionEvent;
 import org.apache.maven.wagon.events.TransferEvent;
 
 public final class Matchers {
 
     private Matchers() {
-    }
-
-    public static ListObjectsRequest eq(ListObjectsRequest listObjectsRequest) {
-        return org.mockito.Matchers.argThat(new ListObjectsRequestMatcher(listObjectsRequest));
     }
 
     public static SessionEvent eq(SessionEvent sessionEvent) {
