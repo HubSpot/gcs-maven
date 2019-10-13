@@ -152,6 +152,11 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
             List<String> directoryContents = new ArrayList<>();
             for (Blob blob : blobs.iterateAll()) {
                 directoryContents.add(blob.getName());
+                if (blob.isDirectory()) {
+                  for (String nestedFile : listDirectory(blob.getName())) {
+                    directoryContents.add(blob.getName() + nestedFile);
+                  }
+                }
             }
 
             return directoryContents;
@@ -201,9 +206,9 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         } catch (StorageException e) {
             throw GcsClientExceptions.propagateForWrite(e, key);
         } catch (FileNotFoundException e) {
-          throw new TransferFailedException("Cannot find file: " + source, e);
+            throw new TransferFailedException("Cannot find file: " + source, e);
         } catch (IOException e) {
-          throw new TransferFailedException(String.format("Cannot read from '%s' and write to '%s'", source, key), e);
+            throw new TransferFailedException(String.format("Cannot read from '%s' and write to '%s'", source, key), e);
         }
     }
 
@@ -220,17 +225,21 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     }
 
     private static String ensureTrailingSlash(String original) {
-        return original.endsWith("/") ? original : original + "/";
+        if (original.isEmpty() || original.endsWith("/")) {
+            return original;
+        } else {
+            return original + "/";
+        }
     }
 
     private static GoogleCredentials buildCredentials(AuthenticationInfo authenticationInfo) throws AuthenticationException {
         Path path = Paths.get(authenticationInfo.getPassword());
         try {
-          return GoogleCredentials
-              .fromStream(Files.newInputStream(path, StandardOpenOption.READ))
-              .createScoped(StorageScopes.CLOUD_PLATFORM);
+            return GoogleCredentials
+                .fromStream(Files.newInputStream(path, StandardOpenOption.READ))
+                .createScoped(StorageScopes.CLOUD_PLATFORM);
         } catch (IOException e) {
-          throw new AuthenticationException("Error loading GCS credentials", e);
+            throw new AuthenticationException("Error loading GCS credentials", e);
         }
     }
 

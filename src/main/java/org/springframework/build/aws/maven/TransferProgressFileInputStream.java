@@ -40,19 +40,23 @@ final class TransferProgressFileInputStream extends FileInputStream {
     @Override
     public int read(byte b[]) throws IOException {
         int count = super.read(b);
-        this.transferProgress.notify(b, b.length);
+        if (count > 0) {
+            this.transferProgress.notify(b, count);
+        }
         return count;
     }
 
     @Override
     public int read(byte b[], int off, int len) throws IOException {
         int count = super.read(b, off, len);
-        if (off == 0) {
-            this.transferProgress.notify(b, len);
-        } else {
-            byte[] bytes = new byte[len];
-            System.arraycopy(b, off, bytes, 0, len);
-            this.transferProgress.notify(bytes, len);
+        if (count > 0) {
+            if (off == 0) {
+                this.transferProgress.notify(b, count);
+            } else {
+                byte[] temp = new byte[count];
+                System.arraycopy(b, off, temp, 0, count);
+                this.transferProgress.notify(temp, count);
+            }
         }
         return count;
     }

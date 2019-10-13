@@ -26,8 +26,8 @@ interface TransferProgress {
      */
     void notify(byte[] buffer, int length);
 
-  /**
-   * Start a new transfer attempt on this progress
-   */
-  void startTransferAttempt();
+    /**
+     * Start a new transfer attempt on this progress
+     */
+    void startTransferAttempt();
 }
