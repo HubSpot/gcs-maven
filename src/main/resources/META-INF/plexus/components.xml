@@ -3,7 +3,7 @@
         <component>
             <role>org.apache.maven.wagon.Wagon</role>
             <role-hint>gcs</role-hint>
-            <implementation>org.springframework.build.aws.maven.RetryingSimpleStorageWagon</implementation>
+            <implementation>org.springframework.build.gcs.maven.RetryingSimpleStorageWagon</implementation>
             <instantiation-strategy>per-lookup</instantiation-strategy>
         </component>
     </components>
