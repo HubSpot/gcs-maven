@@ -189,7 +189,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         String key = getKey(destination);
 
         final String contentType;
-        if (source.getName().endsWith(".xml")) {
+        if (key.endsWith(".xml")) {
             contentType = "application/xml";
         } else {
             contentType = "application/octet-stream";
@@ -233,10 +233,20 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
     }
 
     private static GoogleCredentials buildCredentials(AuthenticationInfo authenticationInfo) throws AuthenticationException {
-        Path path = Paths.get(authenticationInfo.getPassword());
+        String credentialsPathString = authenticationInfo.getPassword();
+
+        final Path credentialsPath;
+        if (credentialsPathString.startsWith("~/")) {
+            String subPath = credentialsPathString.substring(2);
+            Path homePath = Paths.get(System.getProperty("user.home"));
+            credentialsPath = homePath.resolve(subPath);
+        } else {
+            credentialsPath = Paths.get(credentialsPathString);
+        }
+
         try {
             return GoogleCredentials
-                .fromStream(Files.newInputStream(path, StandardOpenOption.READ))
+                .fromStream(Files.newInputStream(credentialsPath, StandardOpenOption.READ))
                 .createScoped(StorageScopes.CLOUD_PLATFORM);
         } catch (IOException e) {
             throw new AuthenticationException("Error loading GCS credentials", e);
