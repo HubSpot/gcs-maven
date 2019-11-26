@@ -23,8 +23,8 @@ import com.google.common.base.Throwables;
 
 public class RetryingSimpleStorageWagon extends SimpleStorageServiceWagon {
   private static final Logger LOG = LoggerFactory.getLogger(RetryingSimpleStorageWagon.class);
-  private static final int TRANSFER_ATTEMPTS = 3;
-  private static final int TRANSFER_RETRY_WAIT_SECONDS = 5;
+  private static final int TRANSFER_ATTEMPTS = 10;
+  private static final int TRANSFER_RETRY_WAIT_SECONDS = 2;
 
   public RetryingSimpleStorageWagon() {
     super();
