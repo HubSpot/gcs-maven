@@ -64,6 +64,8 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
 
     private static final String KEY_FORMAT = "%s%s";
 
+    private final XmlValidator xmlValidator;
+
     private volatile Storage storage;
 
     private volatile String bucketName;
@@ -75,10 +77,12 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
      */
     public SimpleStorageServiceWagon() {
         super(true);
+        this.xmlValidator = new XmlValidator();
     }
 
     protected SimpleStorageServiceWagon(Storage storage, String bucketName, String baseDirectory) {
         super(true);
+        this.xmlValidator = new XmlValidator();
         this.storage = storage;
         this.bucketName = bucketName;
         this.baseDirectory = baseDirectory;
@@ -191,6 +195,7 @@ public class SimpleStorageServiceWagon extends AbstractWagon {
         final String contentType;
         if (key.endsWith(".xml")) {
             contentType = "application/xml";
+            source = xmlValidator.getValidatedSource(key, source);
         } else {
             contentType = "application/octet-stream";
         }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>som.group</groupId>
+  <artifactId>some-artifact</artifactId>
+  <versioning>
+    <versions>
+      <version>1</version>
+    </versions>
+    <lastUpdated>20200709094633</lastUpdated>
+  </versioning>
+</metadata>
+  </version>
+      <version>a</version>
+      <version>b</version>
+      <version>c</version>
+    </versions>
+    <lastUpdated>20200709094633</lastUpdated>
+  </versioning>
+</metadata>
